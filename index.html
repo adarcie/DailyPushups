@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Daily Pushups Counter</title>
   <style>
     html, body { margin: 0; padding: 0; height: 100%; }
@@ -10,10 +10,17 @@
     #dayCounter { font-size: 3vw; margin-bottom: 1vh; }
     #counter { font-size: 6vw; font-weight: bold; }
     #buttons, #incTab { display: flex; gap: 1vw; margin-top: 2vh; }
-    button { font-size: 3vw; padding: 1vh 2vw; border: none; border-radius: 0.5vw; }
+    button { font-size: 3vw; padding: 1vh 2vw; border: none; border-radius: 0.5vw; touch-action: manipulation; }
     #incTab { flex-direction: column; align-items: center; }
     #incControls { display: none; flex-direction: row; gap: 1vw; margin-top: 1vh; }
     .grey-bg { background-color: #bdc3c7; color: black; }
+    /* Modal overlay */
+    #modalOverlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center;
+    }
+    #modal { background: white; color: black; padding: 2vh 2vw; border-radius: 1vw; text-align: center; }
+    #modal button { margin: 1vh; }
   </style>
 </head>
 <body>
@@ -31,37 +38,46 @@
       <button id="inc1">+1</button>
       <button id="inc5">+5</button>
       <button id="inc10">+10</button>
+      <button id="resetBtn">Reset</button>
     </div>
   </div>
+
+  <!-- Confirmation Modal -->
+  <div id="modalOverlay">
+    <div id="modal">
+      <p>Are you sure you want to reset?</p>
+      <button id="confirmYes">Yes</button>
+      <button id="confirmNo">No</button>
+    </div>
+  </div>
+
   <script>
-    // Helpers
+    const BASE = 15;
     function addDays(dateStr, days) {
       const d = new Date(dateStr);
       d.setDate(d.getDate() + days);
       return d.toISOString().split('T')[0];
     }
-    // Load or initialize state
+    // Load/init
     let stored = JSON.parse(localStorage.getItem('pushupState') || 'null');
     const today = new Date().toISOString().split('T')[0];
     if (!stored) {
-      stored = { start: 15, count: 15, lastDate: today, day: 1 };
+      stored = { count: BASE, day: 1, lastDate: today };
     } else {
-      // rollover for missed days
+      if (typeof stored.day !== 'number') stored.day = 1;
       if (stored.lastDate < today) {
         const daysMissed = Math.floor((new Date(today) - new Date(stored.lastDate)) / 864e5);
         for (let i = 0; i < daysMissed; i++) {
+          const prev = stored.count;
           stored.day += 1;
-          const prevCount = stored.count;
-          const newStart = stored.start + 1 + prevCount;
-          stored.start = newStart;
-          stored.count = newStart;
+          stored.count = prev + BASE + stored.day;
           stored.lastDate = addDays(stored.lastDate, 1);
         }
         localStorage.setItem('pushupState', JSON.stringify(stored));
       }
     }
     let current = stored.count;
-    // UI elements
+    // Elements
     const dayCounter = document.getElementById('dayCounter');
     const counter = document.getElementById('counter');
     const dec10 = document.getElementById('dec10');
@@ -73,44 +89,49 @@
     const toggleInc = document.getElementById('toggleInc');
     const debugDay = document.getElementById('debugDay');
     const incControls = document.getElementById('incControls');
-    // Display update
+    const resetBtn = document.getElementById('resetBtn');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const confirmYes = document.getElementById('confirmYes');
+    const confirmNo = document.getElementById('confirmNo');
+
     function updateDisplay() {
       counter.textContent = current;
       dayCounter.textContent = 'Day: ' + stored.day;
-      if (current <= 0) {
-        document.body.classList.add('grey-bg');
-      } else {
-        document.body.classList.remove('grey-bg');
-      }
+      if (current <= 0) document.body.classList.add('grey-bg');
+      else document.body.classList.remove('grey-bg');
     }
-    function saveState() {
+    function save() {
       stored.count = current;
       localStorage.setItem('pushupState', JSON.stringify(stored));
     }
-    // Rollover (debug)
-    function rolloverOneDay() {
+    function rolloverDebug() {
+      const prev = stored.count;
       stored.day += 1;
-      const prevCount = stored.count;
-      const newStart = stored.start + 1 + prevCount;
-      stored.start = newStart;
-      stored.count = newStart;
-      current = newStart;
-      stored.lastDate = today; // for debug, treat as new today
-      saveState();
-      updateDisplay();
+      stored.count = prev + BASE + stored.day;
+      current = stored.count;
+      stored.lastDate = today;
+      save(); updateDisplay();
     }
-    // Handlers
-    dec10.onclick = () => { current = Math.max(0, current - 10); updateDisplay(); saveState(); };
-    dec5.onclick = () => { current = Math.max(0, current - 5); updateDisplay(); saveState(); };
-    dec1.onclick = () => { current = Math.max(0, current - 1); updateDisplay(); saveState(); };
-    inc1.onclick = () => { current += 1; updateDisplay(); saveState(); };
-    inc5.onclick = () => { current += 5; updateDisplay(); saveState(); };
-    inc10.onclick = () => { current += 10; updateDisplay(); saveState(); };
-    toggleInc.onclick = () => {
-      incControls.style.display = incControls.style.display === 'flex' ? 'none' : 'flex';
+    // Reset logic
+    resetBtn.onclick = () => { modalOverlay.style.display = 'flex'; };
+    confirmYes.onclick = () => {
+      stored = { count: BASE, day: 1, lastDate: new Date().toISOString().split('T')[0] };
+      current = BASE;
+      save(); updateDisplay();
+      modalOverlay.style.display = 'none';
     };
-    debugDay.onclick = () => rolloverOneDay();
-    // Init
+    confirmNo.onclick = () => { modalOverlay.style.display = 'none'; };
+
+    // Button handlers
+    dec10.onclick = () => { current = Math.max(0, current - 10); updateDisplay(); save(); };
+    dec5.onclick = () => { current = Math.max(0, current - 5); updateDisplay(); save(); };
+    dec1.onclick = () => { current = Math.max(0, current - 1); updateDisplay(); save(); };
+    inc1.onclick = () => { current += 1; updateDisplay(); save(); };
+    inc5.onclick = () => { current += 5; updateDisplay(); save(); };
+    inc10.onclick = () => { current += 10; updateDisplay(); save(); };
+    toggleInc.onclick = () => { incControls.style.display = incControls.style.display === 'flex' ? 'none' : 'flex'; };
+    debugDay.onclick = () => rolloverDebug();
+
     updateDisplay();
   </script>
 </body>
