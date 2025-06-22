@@ -17,10 +17,12 @@
     #modalOverlay { position: fixed; top:0; left:0; right:0; bottom:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); }
     #modal { background:white; color:black; padding:2vh 2vw; border-radius:1vw; text-align:center; }
     #modal button { margin:1vh; }
+    #countdown { text-align: center; font-size: 4vw; padding: 1vh; color: #555; }
   </style>
 </head>
 <body>
   <div id="dayLabel" style="text-align:center; padding:1vh; font-size:5vw;">Day: 1 (Pushups)</div>
+  <div id="countdown">Time until next day: --:--:--</div>
   <div id="counters">
     <div id="pushPanel" class="panel active">
       <div id="pushCount" style="font-size:10vw;">15</div>
@@ -58,12 +60,15 @@
   <script>
     const BASE = 15;
 
-    function getPSTDateString() {
+    function getPSTDate() {
       const now = new Date();
       const pstOffset = 8 * 60;
       const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-      const pst = new Date(utc - pstOffset * 60000);
-      return pst.toISOString().split('T')[0];
+      return new Date(utc - pstOffset * 60000);
+    }
+
+    function getPSTDateString() {
+      return getPSTDate().toISOString().split('T')[0];
     }
 
     function calcDailyAddition(ex, day) {
@@ -114,6 +119,7 @@
     const modalOverlay= document.getElementById('modalOverlay');
     const yesBtn      = document.getElementById('confirmYes');
     const noBtn       = document.getElementById('confirmNo');
+    const countdownEl = document.getElementById('countdown');
 
     function currentExercise() {
       return state.day % 2 === 1 ? 'push' : 'sit';
@@ -148,6 +154,20 @@
       state.lastDate = getPSTDateString();
       save(); updateUI();
     }
+
+    function updateCountdown() {
+      const now = getPSTDate();
+      const tomorrow = new Date(now);
+      tomorrow.setHours(24, 0, 0, 0);
+      const diff = tomorrow - now;
+      const hrs = Math.floor(diff / 3600000);
+      const mins = Math.floor((diff % 3600000) / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      countdownEl.textContent = `Time until next day: ${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+    }
+
+    setInterval(updateCountdown, 1000);
+    updateCountdown();
 
     dec10.onclick = () => changeCount(-10);
     dec5.onclick  = () => changeCount(-5);
